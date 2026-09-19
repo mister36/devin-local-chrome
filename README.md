@@ -7,13 +7,13 @@ uses Chrome's explicit connection approval flow.
 ## Requirements
 
 - Devin CLI
-- Node.js 20.19 or newer and npm
+- Node.js 24 LTS and npm (also supports Node 20.19+ and 22.12+)
 - Google Chrome 144 or newer
 
 ## Install
 
 ```sh
-git clone https://github.com/YOUR_ACCOUNT/devin-local-chrome.git
+git clone https://github.com/mister36/devin-local-chrome.git
 cd devin-local-chrome
 npm install
 npm link
@@ -87,13 +87,14 @@ npm unlink --global devin-local-chrome
 ```
 
 The installer creates `mcp_config.json.bak` before changing an existing config.
+Uninstall refuses to remove a customized Chrome server unless you pass `--force`.
 
 ## Commands
 
 ```text
 devin-local-chrome install [--project] [--force]
 devin-local-chrome doctor [--project]
-devin-local-chrome uninstall [--project]
+devin-local-chrome uninstall [--project] [--force]
 devin-local-chrome open-settings
 devin-local-chrome print-config
 ```
