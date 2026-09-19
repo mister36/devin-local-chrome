@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawn } from "node:child_process";
-import { constants } from "node:fs";
+import { constants, realpathSync } from "node:fs";
 import {
   access,
   copyFile,
@@ -95,6 +95,13 @@ export function removeServerConfig(config) {
 export function parseMajorVersion(value) {
   const match = value.match(/(\d+)(?:\.\d+){1,3}/);
   return match ? Number(match[1]) : null;
+}
+
+export function supportsNodeVersion(version) {
+  const [major, minor] = version.split(".").map(Number);
+  return (major === 20 && minor >= 19)
+    || (major === 22 && minor >= 12)
+    || major >= 23;
 }
 
 async function readConfig(path) {
@@ -219,10 +226,7 @@ async function doctor({ project }) {
     failed ||= !ok;
   };
 
-  const nodeMajor = Number(process.versions.node.split(".")[0]);
-  const nodeMinor = Number(process.versions.node.split(".")[1]);
-  const supportedNode = nodeMajor > 20 || (nodeMajor === 20 && nodeMinor >= 19);
-  add(supportedNode, "Node.js", process.version);
+  add(supportsNodeVersion(process.versions.node), "Node.js", process.version);
 
   const npx = findExecutable("npx");
   add(Boolean(npx), "npx", npx || "not found");
@@ -298,7 +302,8 @@ async function main() {
   }
 }
 
-const isEntrypoint = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const isEntrypoint = process.argv[1]
+  && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isEntrypoint) {
   main().catch((error) => {
     console.error(`Error: ${error.message}`);
