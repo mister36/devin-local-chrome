@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawn } from "node:child_process";
-import { constants, realpathSync } from "node:fs";
+import { constants, existsSync, realpathSync } from "node:fs";
 import {
   access,
   copyFile,
@@ -14,6 +14,7 @@ import { homedir, platform } from "node:os";
 import { dirname, join, posix, resolve, win32 } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 const SERVER_NAME = "chrome-devtools";
 const SERVER_PACKAGE = "chrome-devtools-mcp@1.9.0";
@@ -32,13 +33,13 @@ function usage() {
 Usage:
   devin-local-chrome install [--project] [--force]
   devin-local-chrome doctor [--project]
-  devin-local-chrome uninstall [--project]
+  devin-local-chrome uninstall [--project] [--force]
   devin-local-chrome open-settings
   devin-local-chrome print-config
 
 Options:
   --project  Use .devin/mcp_config.json in the current project.
-  --force    Replace an existing chrome-devtools MCP entry.`);
+  --force    Replace or remove a custom chrome-devtools MCP entry.`);
 }
 
 export function userConfigPath({
@@ -61,7 +62,7 @@ export function configPath({ project = false, cwd = process.cwd() } = {}) {
 
 export function mergeServerConfig(config, { force = false } = {}) {
   const existing = config.mcpServers?.[SERVER_NAME];
-  if (existing && !force && JSON.stringify(existing) !== JSON.stringify(SERVER_CONFIG)) {
+  if (existing && !force && !isDeepStrictEqual(existing, SERVER_CONFIG)) {
     throw new Error(
       `An MCP server named "${SERVER_NAME}" already exists. Re-run with --force to replace it.`,
     );
@@ -76,9 +77,15 @@ export function mergeServerConfig(config, { force = false } = {}) {
   };
 }
 
-export function removeServerConfig(config) {
-  if (!config.mcpServers?.[SERVER_NAME]) {
+export function removeServerConfig(config, { force = false } = {}) {
+  const existing = config.mcpServers?.[SERVER_NAME];
+  if (!existing) {
     return { config, removed: false };
+  }
+  if (!force && !isDeepStrictEqual(existing, SERVER_CONFIG)) {
+    throw new Error(
+      `The "${SERVER_NAME}" entry has custom settings. Re-run with --force to remove it.`,
+    );
   }
 
   const mcpServers = { ...config.mcpServers };
@@ -151,10 +158,10 @@ async function install({ project, force }) {
   console.log("Chrome will ask for approval when Devin first connects.");
 }
 
-async function uninstall({ project }) {
+async function uninstall({ project, force }) {
   const path = configPath({ project });
   const current = await readConfig(path);
-  const { config, removed } = removeServerConfig(current);
+  const { config, removed } = removeServerConfig(current, { force });
 
   if (!removed) {
     console.log(`No ${SERVER_NAME} entry found in ${path}`);
@@ -190,7 +197,7 @@ function chromeCandidates() {
       .filter(Boolean)
       .map((root) => join(root, "Google", "Chrome", "Application", "chrome.exe"));
   }
-  return ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"];
+  return ["google-chrome", "google-chrome-stable"];
 }
 
 function chromeVersion() {
@@ -247,7 +254,7 @@ async function doctor({ project }) {
   const path = configPath({ project });
   try {
     const config = await readConfig(path);
-    const installed = JSON.stringify(config.mcpServers?.[SERVER_NAME]) === JSON.stringify(SERVER_CONFIG);
+    const installed = isDeepStrictEqual(config.mcpServers?.[SERVER_NAME], SERVER_CONFIG);
     add(installed, "MCP configuration", installed ? path : `missing or different in ${path}`);
   } catch (error) {
     add(false, "MCP configuration", error.message);
@@ -263,14 +270,22 @@ async function doctor({ project }) {
   }
 }
 
-function openSettings() {
+async function openSettings() {
   const url = "chrome://inspect/#remote-debugging";
   const os = platform();
   const command = os === "darwin" ? "open" : os === "win32" ? "cmd" : "xdg-open";
   const args = os === "win32" ? ["/c", "start", "", url] : [url];
-  const child = spawn(command, args, { detached: true, stdio: "ignore" });
-  child.unref();
-  console.log(`Opened ${url}`);
+  await new Promise((resolve, reject) => {
+    const child = spawn(command, args, { detached: true, stdio: "ignore" });
+    child.once("error", (error) => {
+      reject(new Error(`Could not start ${command}: ${error.message}. Open ${url} in Chrome manually.`));
+    });
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
+  });
+  console.log(`Requested ${url}. If it did not open, paste this URL into Chrome.`);
 }
 
 function parseOptions(args) {
@@ -291,7 +306,7 @@ async function main() {
   } else if (command === "uninstall") {
     await uninstall(options);
   } else if (command === "open-settings") {
-    openSettings();
+    await openSettings();
   } else if (command === "print-config") {
     console.log(JSON.stringify({ mcpServers: { [SERVER_NAME]: SERVER_CONFIG } }, null, 2));
   } else if (command === "help" || command === "--help" || command === "-h") {
@@ -303,6 +318,8 @@ async function main() {
 }
 
 const isEntrypoint = process.argv[1]
+  && process.argv[1] !== "-"
+  && existsSync(process.argv[1])
   && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isEntrypoint) {
   main().catch((error) => {

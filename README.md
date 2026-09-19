@@ -87,13 +87,14 @@ npm unlink --global devin-local-chrome
 ```
 
 The installer creates `mcp_config.json.bak` before changing an existing config.
+Uninstall refuses to remove a customized Chrome server unless you pass `--force`.
 
 ## Commands
 
 ```text
 devin-local-chrome install [--project] [--force]
 devin-local-chrome doctor [--project]
-devin-local-chrome uninstall [--project]
+devin-local-chrome uninstall [--project] [--force]
 devin-local-chrome open-settings
 devin-local-chrome print-config
 ```
