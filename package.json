@@ -1,0 +1,19 @@
+{
+  "name": "devin-local-chrome",
+  "version": "0.1.0",
+  "description": "Connect Devin CLI to an already-open local Chrome session.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "devin-local-chrome": "./src/cli.mjs"
+  },
+  "scripts": {
+    "doctor": "node ./src/cli.mjs doctor",
+    "lint": "node --check ./src/cli.mjs && node --check ./test/cli.test.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "license": "MIT"
+}

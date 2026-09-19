@@ -1,0 +1,4 @@
+node_modules/
+*.log
+.DS_Store
+.devin/mcp_config.local.json
